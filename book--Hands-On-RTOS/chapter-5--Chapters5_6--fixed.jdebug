@@ -1,0 +1,285 @@
+/*
+
+ Description:
+ * This file has fixes for a program-file distributed with the book:  "Hands-On RTOS with Microcontrollers"
+ * This file is a fixed version of "Chapters5_6.jdebug", from Chapters 5 and 6.
+ * The bugs in Chapters5_6.jdebug are described in my web-page: 
+   * Study Guide for "Hands-On RTOS with Microcontrollers"
+   * https://jimyuill.com/embedded-systems/study-guide-freertos-book
+ * In the present file, fixes are described in the comments prefixed by "//@JY".
+
+
+  The original program is mainSoftwareTimers.c:
+ * https://github.com/PacktPublishing/Hands-On-RTOS-with-Microcontrollers/blob/master/Chapter_8/Src/mainSoftwareTimers.c
+ * Copyright for mainSoftwareTimers.c:
+    * MIT License, Copyright (c) 2019 Brian Amos
+	* Permission is hereby granted, free of charge, to any person obtaining a copy
+	* of this software and associated documentation files (the "Software"), to deal
+	* in the Software without restriction, including without limitation the rights
+	* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	* copies of the Software, and to permit persons to whom the Software is
+	* furnished to do so, subject to the following conditions:
+	* The above copyright notice and this permission notice shall be included in all
+	* copies or substantial portions of the Software.
+
+ Copyright (c) for the present file: MIT License, 2021 Jim Yuill
+
+ */
+
+
+/*********************************************************************
+*                                                                     
+*       OnProjectLoad                                                 
+*                                                                     
+* Function description                                                
+*   Project load routine. Required.                                   
+*                                                                     
+**********************************************************************
+*/                                                                    
+void OnProjectLoad (void) {
+  //
+  // Dialog-generated settings
+  //
+  Project.SetTraceSource ("SWO");
+  Project.SetDevice ("STM32F767ZI");
+  Project.SetHostIF ("USB", "");
+  
+  //@JY original line: Project.SetTargetIF ("JTAG");
+  //@JY fixed line (prevents Ozone error messages):
+  Project.SetTargetIF ("SWD");
+  
+  Project.SetTIFSpeed ("50 MHz");
+  
+  //@JY original line:  Project.AddSvdFile ("C:\Program Files (x86)\Atollic\TrueSTUDIO for STM32 9.3.0\ide\plugins\com.atollic.truestudio.tsp.stm32_1.0.0.20190212-0734\tsp\sfr\STM32F7x7.svd");
+  //@JY fixed line (uses path for STM32CubeIDE):
+  Project.AddSvdFile ("C:\ST\STM32CubeIDE_1.5.1\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.productdb.debug_1.5.0.202011051456\resources\cmsis\STMicroelectronics_CMSIS_SVD\STM32F767.svd");
+  
+  Project.SetOSPlugin("FreeRTOSPlugin_CM7");
+  
+  //@JY added line (prevents Ozone error message):
+  Project.AddSvdFile ("C:/Program Files/SEGGER/Ozone/Config/CPU/Cortex-M7F.svd");
+  
+  //@JY added line (needed for using Ozone with SystemView):
+  Project.SetRTT(0);  
+   
+  //
+  // User settings
+  //
+  
+  //@JY original line: File.Open ("C:/projects/packtBookRTOS/freeRTOS_Nucleo767/Debug/freeRTOS_Nucleo767.elf");
+  //@JY fixed line (use ELF file for Chapter 5):
+  File.Open ("C:\projects\packtBookRTOS\Chapters5_6\Debug\Chapter5_main.elf");
+}
+
+/*********************************************************************
+*                                                                     
+*      TargetReset                                                    
+*                                                                     
+* Function description                                                
+*   Replaces the default target device reset routine. Optional.       
+*                                                                     
+* Notes                                                               
+*   This example demonstrates the usage when                          
+*   debugging a RAM program on a Cortex-M target device               
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void TargetReset (void) {                                           
+//                                                                    
+//  unsigned int SP;                                                  
+//  unsigned int PC;                                                  
+//  unsigned int VectorTableAddr;                                     
+//                                                                    
+//  Exec.Reset();                                                     
+//                                                                    
+//  VectorTableAddr = Elf.GetBaseAddr();                              
+//                                                                    
+//  if (VectorTableAddr != 0xFFFFFFFF) {                              
+//                                                                    
+//    Util.Log("Resetting Program.");                               
+//                                                                    
+//    SP = Target.ReadU32(VectorTableAddr);                           
+//    Target.SetReg("SP", SP);                                      
+//                                                                    
+//    PC = Target.ReadU32(VectorTableAddr + 4);                       
+//    Target.SetReg("PC", PC);                                      
+//  }                                                                 
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       BeforeTargetReset                                             
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void BeforeTargetReset (void) {                                     
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       AfterTargetReset                                              
+*                                                                     
+* Function description                                                
+*   Event handler routine.                                            
+*    - Sets the PC register to program reset value.                   
+*    - Sets the SP register to program reset value on Cortex-M.       
+*                                                                     
+**********************************************************************
+*/                                                                    
+void AfterTargetReset (void) {
+  unsigned int SP;                                                
+  unsigned int PC;                                                
+  unsigned int VectorTableAddr;                                   
+                                                                  
+  VectorTableAddr = Elf.GetBaseAddr();                            
+                                                                  
+  if (VectorTableAddr == 0xFFFFFFFF) {                            
+    Util.Log("Project file error: failed to get program base"); 
+  } else {                                                        
+    SP = Target.ReadU32(VectorTableAddr);                         
+    Target.SetReg("SP", SP);                                    
+                                                                  
+    PC = Target.ReadU32(VectorTableAddr + 4);                     
+    Target.SetReg("PC", PC);                                    
+  }
+}
+
+/*********************************************************************
+*                                                                     
+*       DebugStart                                                    
+*                                                                     
+* Function description                                                
+*   Replaces the default debug session startup routine. Optional.     
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void DebugStart (void) {                                            
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       TargetConnect                                                 
+*                                                                     
+* Function description                                                
+*   Replaces the default target IF connection routine. Optional.      
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void TargetConnect (void) {                                         
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       BeforeTargetConnect                                           
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void BeforeTargetConnect (void) {                                   
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       AfterTargetConnect                                            
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void AfterTargetConnect (void) {                                    
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       TargetDownload                                                
+*                                                                     
+* Function description                                                
+*   Replaces the default program download routine. Optional.          
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void TargetDownload (void) {                                        
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       BeforeTargetDownload                                          
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void BeforeTargetDownload (void) {                                  
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*      AfterTargetDownload                                            
+*                                                                     
+* Function description                                                
+*   Event handler routine.                                            
+*    - Sets the PC register to program reset value.                   
+*    - Sets the SP register to program reset value on Cortex-M.       
+*                                                                     
+**********************************************************************
+*/                                                                    
+void AfterTargetDownload (void) {
+  unsigned int SP;                                                
+  unsigned int PC;                                                
+  unsigned int VectorTableAddr;                                   
+                                                                  
+  VectorTableAddr = Elf.GetBaseAddr();                            
+                                                                  
+  if (VectorTableAddr == 0xFFFFFFFF) {                            
+    Util.Log("Project file error: failed to get program base"); 
+  } else {                                                        
+    SP = Target.ReadU32(VectorTableAddr);                         
+    Target.SetReg("SP", SP);                                    
+                                                                  
+    PC = Target.ReadU32(VectorTableAddr + 4);                     
+    Target.SetReg("PC", PC);                                    
+  }
+}
+
+/*********************************************************************
+*                                                                     
+*       BeforeTargetDisconnect                                        
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void BeforeTargetDisconnect (void) {                                
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       AfterTargetDisconnect                                         
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void AfterTargetDisconnect (void) {                                 
+//}                                                                   
+
+/*********************************************************************
+*                                                                     
+*       AfterTargetHalt                                               
+*                                                                     
+* Function description                                                
+*   Event handler routine. Optional.                                  
+*                                                                     
+**********************************************************************
+*/                                                                    
+//void AfterTargetHalt (void) {                                       
+//}                                                                   

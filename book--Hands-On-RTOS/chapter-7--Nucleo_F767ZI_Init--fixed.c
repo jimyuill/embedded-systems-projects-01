@@ -59,18 +59,18 @@ The following four strings are used in assert_failed().
   (I don't know how much stack-space is available.)
 
 * outputString size calculation:
-  * It's the maximum string-length needed for the snprintf call:
-    snprintf(..., "Assertion Failed.  File: %s%s  Line: %d", truncatedFileName, fileNameSuffix, line)
+  * It's the maximum string-length needed for the snprintf() call:
+    snprintf(outputString, sizeof(outputString),
+      "Assertion Failed.  File: %s%s  Line: %d", pFileNamePrefix, pFileName, line);
   25 bytes: "Assertion Failed.  File: "
-  (TRUNCATED_FN_ARRAY_LEN-1) bytes: truncatedFileName
-  3 bytes: fileNameSuffix
+  3 bytes: pfileNamePrefix
+  FILE_PATH_DISPLAY_LEN bytes: pFileName
   8 bytes: "  Line: "
   6 bytes: line
   1 byte: null-terminator
 */
-#define TRUNCATED_FN_ARRAY_LEN 31  // 30 bytes for filename, 1 byte for null-terminator
-char outputString[25+ (TRUNCATED_FN_ARRAY_LEN-1) +3+8+6+1];
-char truncatedFileName[TRUNCATED_FN_ARRAY_LEN];
+#define FILE_PATH_DISPLAY_LEN 30  // Display the last 30 bytes
+char outputString[25+3+ FILE_PATH_DISPLAY_LEN +8+6+1];
 char dots[] = "...";
 char emptyString[] = "";
 // Code added for bug-fix:  END
@@ -260,21 +260,26 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
   // ##################################################
   // Code added for bug-fix:  START
-  char * fileNameSuffix;
+  char * pFileNamePrefix;
+  char * pFileName;
+  int length;
 
-  // Get the file-name, up to this many characters:  TRUNCATED_FN_ARRAY_LEN
-  snprintf(truncatedFileName, TRUNCATED_FN_ARRAY_LEN, "%s", file);
-  // If the file-name was truncated then "..." will be appended as a suffix
-  if (strlen((const char *)file) >= TRUNCATED_FN_ARRAY_LEN) {
-    fileNameSuffix = dots;
+  // If the file-name is too long, just display the end of it,
+  // and prepend it with "..."
+  length = strlen((const char *)file);  // strlen does not include the null-terminator
+  if (length > FILE_PATH_DISPLAY_LEN) {
+    pFileNamePrefix = dots;
+    pFileName = (char *)file + (length - FILE_PATH_DISPLAY_LEN);
   }
   else {
-    fileNameSuffix = emptyString;
+    pFileNamePrefix = emptyString;
+    pFileName = (char *)file;
   }
+
   // Format the output-string
   snprintf(outputString, sizeof(outputString),
     "Assertion Failed.  File: %s%s  Line: %u",
-	truncatedFileName, fileNameSuffix, (unsigned int) line);
+	pFileNamePrefix, pFileName, (unsigned int) line);
 
   SEGGER_SYSVIEW_PrintfHost(outputString);
   // Code added for bug-fix:  END
